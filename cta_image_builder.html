@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CTA Image Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background: #f0f0f0;
+    }
+    .controls {
+      display: grid;
+      gap: 1rem;
+      max-width: 600px;
+      margin-bottom: 2rem;
+    }
+    .color-pair {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    input[type="color"] {
+      width: 60px;
+    }
+    .cta-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+      background-size: cover;
+      background-position: center;
+    }
+    #copySuccess, #filenameError {
+      font-size: 0.9rem;
+      display: none;
+    }
+    #copySuccess { color: green; }
+    #filenameError { color: red; }
+  </style>
+  <link id="fontLink" rel="stylesheet" href="">
+</head>
+<body>
+
+<h2>CTA Image Generator</h2>
+
+<div class="controls">
+  <label>CTA Text: <input type="text" id="ctaText"></label>
+
+  <label>Font Family:
+    <select id="fontFamily">
+      <optgroup label="Google Fonts">
+        <option value="Inter">Inter</option>
+        <option value="Roboto">Roboto</option>
+        <option value="Lato">Lato</option>
+        <option value="Oswald">Oswald</option>
+        <option value="Montserrat">Montserrat</option>
+      </optgroup>
+      <optgroup label="Web-safe Fonts">
+        <option value="Arial">Arial</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Courier New">Courier New</option>
+        <option value="Verdana">Verdana</option>
+        <option value="Tahoma">Tahoma</option>
+        <option value="Trebuchet MS">Trebuchet MS</option>
+        <option value="Impact">Impact</option>
+      </optgroup>
+    </select>
+  </label>
+
+  <label>Text Color:
+    <div class="color-pair">
+      <input type="color" id="textColorPicker">
+      <input type="text" id="textColorHex" maxlength="7" placeholder="#000000">
+    </div>
+  </label>
+
+  <label>Background Color:
+    <div class="color-pair">
+      <input type="color" id="bgColorPicker">
+      <input type="text" id="bgColorHex" maxlength="7" placeholder="#FFFFFF">
+    </div>
+  </label>
+
+  <label>Border Color:
+    <div class="color-pair">
+      <input type="color" id="borderColorPicker">
+      <input type="text" id="borderColorHex" maxlength="7" placeholder="#000000">
+    </div>
+  </label>
+
+  <label>Font Size (px): <input type="number" id="fontSize" value="32" min="10" max="100"></label>
+  <label>Letter Spacing (px): <input type="number" id="letterSpacing" value="0" step="0.5"></label>
+  <label>Border Radius (px): <input type="number" id="borderRadius" value="20"></label>
+  <label>Border Thickness (px): <input type="number" id="borderThickness" value="3"></label>
+  <label>Width (px): <input type="number" id="imageWidth" value="600"></label>
+  <label>Height (px): <input type="number" id="imageHeight" value="200"></label>
+
+  <label>Upload Background Image: <input type="file" id="bgImageUpload" accept="image/*"></label>
+
+  <label>File Name (no extension): <input type="text" id="fileName" placeholder="cta-image"></label>
+  <button onclick="sanitizeFileName()">Sanitize File Name</button>
+  <span id="filenameError">❌ Only a–z, 0–9, hyphens and underscores are allowed.</span>
+
+  <button onclick="downloadImage()">Download PNG</button>
+  <button onclick="downloadImage(true)">Download PNG (2×)</button>
+  <button onclick="downloadSVG()">Download SVG</button>
+  <button onclick="copyShareableURL()">Copy Shareable URL</button>
+  <span id="copySuccess">✅ URL copied!</span>
+</div>
+
+<div class="cta-preview" id="preview">
+  <span id="previewText">Click Here Now!</span>
+</div>
+
+<canvas id="ctaCanvas" style="display:none;"></canvas>
+
+<script>
+const el = (id) => document.getElementById(id);
+const ctx = el("ctaCanvas").getContext("2d");
+const state = { image: null };
+
+function loadGoogleFont(fontName) {
+  const link = document.getElementById("fontLink");
+  link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, "+")}&display=swap`;
+}
+
+function updatePreview() {
+  const preview = el("preview");
+  const text = el("previewText");
+
+  preview.style.width = el("imageWidth").value + "px";
+  preview.style.height = el("imageHeight").value + "px";
+  preview.style.borderRadius = el("borderRadius").value + "px";
+  preview.style.border = `${el("borderThickness").value}px solid ${el("borderColorPicker").value}`;
+  preview.style.backgroundColor = el("bgColorPicker").value;
+  preview.style.backgroundImage = state.image ? `url(${state.image.src})` : "";
+  preview.style.backgroundSize = "cover";
+  preview.style.backgroundPosition = "center";
+
+  text.textContent = el("ctaText").value;
+  text.style.color = el("textColorPicker").value;
+  text.style.fontSize = el("fontSize").value + "px";
+  text.style.fontFamily = el("fontFamily").value;
+  text.style.letterSpacing = el("letterSpacing").value + "px";
+}
+
+function sanitizeFileName() {
+  let val = el("fileName").value.toLowerCase();
+  val = val.replace(/[^a-z0-9_-]/g, "-");
+  el("fileName").value = val;
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawCanvas(scale = 1) {
+  const baseWidth = parseInt(el("imageWidth").value, 10);
+  const baseHeight = parseInt(el("imageHeight").value, 10);
+  const borderThickness = parseInt(el("borderThickness").value, 10);
+
+  // Canvas size is CTA size + borderThickness (scaled)
+  const width = (baseWidth + borderThickness) * scale;
+  const height = (baseHeight + borderThickness) * scale;
+  const borderRadius = parseInt(el("borderRadius").value, 10) * scale;
+  const scaledBorderThickness = borderThickness * scale;
+  const font = `${parseInt(el("fontSize").value, 10) * scale}px ${el("fontFamily").value}`;
+  const letterSpacing = parseFloat(el("letterSpacing").value) * scale;
+
+  el("ctaCanvas").width = width;
+  el("ctaCanvas").height = height;
+  ctx.clearRect(0, 0, width, height);
+
+  // Draw rounded rect offset by half borderThickness (to keep border fully visible)
+  const halfBorder = scaledBorderThickness / 2;
+  drawRoundedRect(ctx, halfBorder, halfBorder, width - scaledBorderThickness, height - scaledBorderThickness, borderRadius);
+  
+  ctx.fillStyle = el("bgColorPicker").value;
+  ctx.fill();
+
+  if (scaledBorderThickness > 0) {
+    ctx.lineWidth = scaledBorderThickness;
+    ctx.strokeStyle = el("borderColorPicker").value;
+    ctx.stroke();
+  }
+
+  if (state.image) {
+    ctx.save();
+    // Clip inside the border
+    drawRoundedRect(ctx, halfBorder, halfBorder, width - scaledBorderThickness, height - scaledBorderThickness, borderRadius);
+    ctx.clip();
+
+    // Draw the background image stretched inside the border
+    ctx.drawImage(state.image, halfBorder, halfBorder, width - scaledBorderThickness, height - scaledBorderThickness);
+    ctx.restore();
+  }
+
+  ctx.font = font;
+  ctx.fillStyle = el("textColorPicker").value;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // Center text inside inner box (exclude border thickness)
+  const textX = width / 2;
+  const textY = height / 2;
+
+  const text = el("ctaText").value;
+  if (letterSpacing > 0) {
+    let x = textX - ((text.length - 1) * letterSpacing + ctx.measureText(text).width) / 2;
+    for (let char of text) {
+      ctx.fillText(char, x + ctx.measureText(char).width / 2, textY);
+      x += ctx.measureText(char).width + letterSpacing;
+    }
+  } else {
+    ctx.fillText(text, textX, textY);
+  }
+}
+function saveCanvasImage(scale, filename) {
+  const link = document.createElement("a");
+  link.download = `${filename}${scale > 1 ? "-2x" : ""}.png`;
+  link.href = el("ctaCanvas").toDataURL("image/png");
+  link.click();
+}
+
+function downloadImage(double = false) {
+  sanitizeFileName();
+  const scale = double ? 2 : 1;
+  const filename = el("fileName").value.trim() || "cta-image";
+  const img = state.image;
+
+  if (img && !img.complete) {
+    img.onload = () => {
+      drawCanvas(scale);
+      saveCanvasImage(scale, filename);
+    };
+    return;
+  }
+
+  drawCanvas(scale);
+  saveCanvasImage(scale, filename);
+}
+
+function downloadSVG() {
+  sanitizeFileName();
+  const width = el("imageWidth").value;
+  const height = el("imageHeight").value;
+  const fontSize = el("fontSize").value;
+  const font = el("fontFamily").value;
+  const letterSpacing = el("letterSpacing").value;
+  const bgColor = el("bgColorPicker").value;
+  const textColor = el("textColorPicker").value;
+  const borderColor = el("borderColorPicker").value;
+  const radius = el("borderRadius").value;
+  const border = el("borderThickness").value;
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="${bgColor}" stroke="${borderColor}" stroke-width="${border}"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+    fill="${textColor}" font-size="${fontSize}" font-family="${font}" letter-spacing="${letterSpacing}">${el("ctaText").value}</text>
+</svg>`;
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${el("fileName").value}.svg`;
+  link.click();
+}
+
+function copyShareableURL() {
+  const params = new URLSearchParams({
+    text: el("ctaText").value,
+    textColor: el("textColorPicker").value,
+    bgColor: el("bgColorPicker").value,
+    borderColor: el("borderColorPicker").value,
+    borderThickness: el("borderThickness").value,
+    borderRadius: el("borderRadius").value,
+    fontSize: el("fontSize").value,
+    letterSpacing: el("letterSpacing").value,
+    fontFamily: el("fontFamily").value,
+    width: el("imageWidth").value,
+    height: el("imageHeight").value
+  });
+  navigator.clipboard.writeText(`${location.origin}${location.pathname}?${params}`).then(() => {
+    el("copySuccess").style.display = "inline";
+    setTimeout(() => el("copySuccess").style.display = "none", 2000);
+  });
+}
+
+function loadFromURL() {
+  const params = new URLSearchParams(location.search);
+  const mappings = {
+    ctaText: "text",
+    textColorPicker: "textColor",
+    bgColorPicker: "bgColor",
+    borderColorPicker: "borderColor",
+    fontSize: "fontSize",
+    letterSpacing: "letterSpacing",
+    borderRadius: "borderRadius",
+    borderThickness: "borderThickness",
+    fontFamily: "fontFamily",
+    imageWidth: "width",
+    imageHeight: "height"
+  };
+
+  for (const [id, param] of Object.entries(mappings)) {
+    const val = params.get(param);
+    if (val !== null) {
+      el(id).value = val;
+    }
+  }
+
+  const font = el("fontFamily").value;
+  if (["Inter", "Roboto", "Lato", "Oswald", "Montserrat"].includes(font)) {
+    loadGoogleFont(font);
+  }
+
+  updatePreview();
+}
+
+el("fontFamily").addEventListener("change", () => {
+  const selected = el("fontFamily").value;
+  if (["Inter", "Roboto", "Lato", "Oswald", "Montserrat"].includes(selected)) {
+    loadGoogleFont(selected);
+  }
+  updatePreview();
+});
+
+el("bgImageUpload").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.image = new Image();
+    state.image.onload = updatePreview;
+    state.image.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+[["textColorPicker", "textColorHex"], ["bgColorPicker", "bgColorHex"], ["borderColorPicker", "borderColorHex"]]
+.forEach(([pickerID, hexID]) => {
+  const picker = el(pickerID), hex = el(hexID);
+  picker.addEventListener("input", () => hex.value = picker.value);
+  hex.addEventListener("input", () => {
+    if (/^#([0-9A-Fa-f]{6})$/.test(hex.value)) {
+      picker.value = hex.value;
+      updatePreview();
+    }
+  });
+});
+
+[
+  "ctaText", "fontSize", "letterSpacing", "borderRadius", "borderThickness",
+  "imageWidth", "imageHeight", "textColorPicker", "bgColorPicker", "borderColorPicker"
+].forEach(id => el(id).addEventListener("input", updatePreview));
+
+window.onload = loadFromURL;
+</script>
+
+
+</body>
+</html>

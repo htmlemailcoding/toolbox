@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Case Converter</title>
+  <style>
+    :root{--bg:#f6f8fa;--card:#fff;--accent:#2b7cff;--muted:#6b7280}
+    *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{margin:0;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .card{width:100%;max-width:880px;background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 20px rgba(17,24,39,0.06)}
+    h1{margin:6px 0 12px;font-size:18px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    textarea{flex:1;min-height:160px;width:100%;padding:12px;border-radius:8px;border:1px solid #e6e9ef;resize:vertical;font-size:14px;line-height:1.4}
+    select,input[type=search]{padding:8px 10px;border-radius:8px;border:1px solid #e6e9ef;background:#fff}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#eef2ff;color:var(--accent);border:1px solid rgba(43,124,255,0.12)}
+    .small{padding:6px 8px;font-size:13px}
+    .out{white-space:pre-wrap;border-radius:8px;padding:12px;border:1px dashed #e6e9ef;background:#fbfdff;min-height:140px}
+    .label{font-size:13px;color:var(--muted);margin-bottom:6px}
+    footer{margin-top:12px;font-size:12px;color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center}
+    @media (max-width:640px){.row{flex-direction:column}.controls{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Case converter">
+    <h1>Case Converter</h1>
+
+    <div class="row">
+      <div style="flex:1;min-width:280px">
+        <div class="label">Input</div>
+        <textarea id="input" placeholder="Type or paste text here..."></textarea>
+        <div style="margin-top:8px" class="controls">
+          <button id="clear" class="secondary small">Clear</button>
+          <button id="paste" class="secondary small">Paste</button>
+          <button id="copyIn" class="secondary small">Copy Input</button>
+        </div>
+      </div>
+
+      <div style="width:320px;min-width:240px">
+        <div class="label">Transform</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <button class="small" data-case="uppercase">UPPERCASE</button>
+          <button class="small" data-case="lowercase">lowercase</button>
+          <button class="small" data-case="title">Title Case</button>
+          <button class="small" data-case="sentence">Sentence case</button>
+          <button class="small" data-case="toggle">tOGGLE cASE</button>
+          <button class="small" data-case="camel">camelCase</button>
+          <button class="small" data-case="pascal">PascalCase</button>
+          <button class="small" data-case="snake">snake_case</button>
+          <button class="small" data-case="kebab">kebab-case</button>
+        </div>
+
+        <div class="label">Options</div>
+        <div class="flex" style="margin-bottom:10px">
+          <label style="font-size:13px;color:var(--muted)">
+            <input id="preserveSpacing" type="checkbox" style="margin-right:6px" />Preserve spacing/newlines
+          </label>
+          <div style="flex:1"></div>
+          <button id="apply" class="small">Apply</button>
+        </div>
+
+        <div class="label">Output</div>
+        <div id="output" class="out" aria-live="polite"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="copyOut">Copy Output</button>
+          <button id="replaceIn" class="secondary">Replace Input</button>
+          <button id="download" class="secondary">Download .txt</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>Simple client-side tool — no server. Selected transform applies to the whole input.</footer>
+  </div>
+
+  <script>
+    // Helpers
+    const el = id => document.getElementById(id);
+    const input = el('input');
+    const output = el('output');
+    const preserveSpacing = el('preserveSpacing');
+
+    function splitTokens(text, preserve) {
+      if (preserve) {
+        // keep whitespace tokens, so we can rejoin them as-is
+        return text.split(/(\s+)/);
+      } else {
+        // collapse whitespace
+        return text.trim().split(/\s+/).filter(Boolean);
+      }
+    }
+
+    function toTitleCaseToken(token) {
+      return token.replace(/^[\p{L}\p{N}]+/u, s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
+    }
+
+    function toSentenceCaseToken(token, isFirst) {
+      if (!token) return token;
+      if (isFirst) {
+        return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+      } else {
+        return token.toLowerCase();
+      }
+    }
+
+    function splitToWords(s) {
+      // split by whitespace, punctuation, underscores, dashes, and camel boundaries
+      // preserves letters and numbers
+      const parts = s
+        .replace(/([a-z])([A-Z])/g, '$1 $2')   // camel boundary
+        .replace(/[_\-\.]+/g, ' ')             // separators
+        .split(/\s+/)
+        .filter(Boolean);
+      return parts;
+    }
+
+    // Case transforms
+    const transforms = {
+      uppercase: text => text.toUpperCase(),
+      lowercase: text => text.toLowerCase(),
+      title: (text, preserve) => {
+        if (preserve) {
+          const tokens = splitTokens(text, true);
+          let out = tokens.map(tok => /\s+/.test(tok) ? tok : toTitleCaseToken(tok)).join('');
+          return out;
+        } else {
+          return splitToWords(text).map(toTitleCaseToken).join(' ');
+        }
+      },
+      sentence: (text, preserve) => {
+        if (preserve) {
+          const tokens = splitTokens(text, true);
+          // find first non-whitespace token to capitalize
+          let seenFirst = false;
+          return tokens.map(tok => {
+            if (/\s+/.test(tok)) return tok;
+            const out = toSentenceCaseToken(tok, !seenFirst);
+            seenFirst = true;
+            return out;
+          }).join('');
+        } else {
+          const words = splitToWords(text);
+          return words.map((w,i)=>toSentenceCaseToken(w,i===0)).join(' ');
+        }
+      },
+      toggle: text => {
+        return Array.from(text).map(ch => {
+          if (ch === ch.toUpperCase()) return ch.toLowerCase();
+          return ch.toUpperCase();
+        }).join('');
+      },
+      camel: text => {
+        const words = splitToWords(text).map(w => w.toLowerCase());
+        if (!words.length) return '';
+        return words[0] + words.slice(1).map(w => w.charAt(0).toUpperCase()+w.slice(1)).join('');
+      },
+      pascal: text => {
+        return splitToWords(text).map(w => w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join('');
+      },
+      snake: text => splitToWords(text).map(w=>w.toLowerCase()).join('_'),
+      kebab: text => splitToWords(text).map(w=>w.toLowerCase()).join('-')
+    };
+
+    // Event wiring
+    document.querySelectorAll('button[data-case]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        applyTransform(btn.dataset.case);
+      });
+    });
+
+    el('apply').addEventListener('click', () => {
+      // default to lowercase as example if none selected: keep last used? we'll read output transform from a selection - simpler: apply lowercase
+      applyTransform('lowercase');
+    });
+
+    el('clear').addEventListener('click', ()=>{ input.value=''; output.textContent=''; input.focus(); });
+    el('paste').addEventListener('click', async ()=> {
+      try { const t = await navigator.clipboard.readText(); input.value += t; } catch(e){ alert('Paste failed'); }
+    });
+    el('copyIn').addEventListener('click', async ()=> {
+      try { await navigator.clipboard.writeText(input.value); } catch(e){ alert('Copy failed'); }
+    });
+    el('copyOut').addEventListener('click', async ()=> {
+      try { await navigator.clipboard.writeText(output.textContent); } catch(e){ alert('Copy failed'); }
+    });
+    el('replaceIn').addEventListener('click', ()=> { input.value = output.textContent; });
+    el('download').addEventListener('click', ()=> {
+      const blob = new Blob([output.textContent], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'converted.txt'; document.body.appendChild(a); a.click();
+      URL.revokeObjectURL(url); a.remove();
+    });
+
+    input.addEventListener('input', ()=> { /* optionally live update */ });
+
+    function applyTransform(kind) {
+      const text = input.value;
+      const preserve = preserveSpacing.checked;
+      const fn = transforms[kind];
+      if (!fn) return;
+      try {
+        const res = fn(text, preserve);
+        output.textContent = res;
+      } catch (e) {
+        output.textContent = 'Error transforming text';
+        console.error(e);
+      }
+    }
+
+    // keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        applyTransform('kebab');
+      }
+    });
+
+    // Initialize sample
+    input.value = "Paste or type text here. Try: hello WORLD_example text. Newlines preserved if option checked.";
+    output.textContent = '';
+  </script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  /* Page Styling */
+  body {
+    background-color: #e4002b; /* Default Rheem Red */
+    font-family: Arial, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 50px;
+    margin: 0;
+    transition: background-color 0.3s ease;
+  }
+
+  .controls {
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.2);
+    padding: 15px;
+    border-radius: 8px;
+  }
+
+  /* Style for the new Dropdown */
+  #brand-selector {
+    padding: 10px;
+    border-radius: 4px;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    background-color: white;
+  }
+
+  button, label {
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    background-color: #ffffff;
+    color: #333;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: background-color 0.2s;
+    display: inline-block;
+  }
+
+  button:hover, label:hover {
+    background-color: #f0f0f0;
+  }
+
+  input[type="file"] {
+    display: none;
+  }
+
+  /* Container for Export */
+  #table-container {
+    padding: 0px;
+    background-color: transparent; 
+    width: fit-content;
+  }
+
+  table {
+    width: 524px;
+    table-layout: fixed;
+    text-align: center;
+    border-collapse: collapse;
+    margin: 0 auto;
+    word-wrap: break-word;
+  }
+
+  th {
+    background-color: #e4002b; /* Controlled by JS */
+    color: #ffffff;
+    padding: 10px 8px;
+    vertical-align: middle;
+    font-size: 16px;
+    font-weight: normal;
+    transition: background-color 0.3s ease;
+  }
+
+  th:nth-child(1) { width: 176px; }
+  th:nth-child(2) { width: 144px; }
+  th:nth-child(3) { width: 144px; }
+
+  td {
+    background-color: #ffffff;
+    padding: 10px 8px;
+    color: #000;
+    vertical-align: middle;
+    font-size: 16px;
+  }
+
+  td:nth-child(2), td:nth-child(3) {
+    font-weight: bold;
+  }
+
+  [contenteditable="true"]:focus {
+    outline: 2px solid #000000;
+  }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <select id="brand-selector" onchange="changeBrandColor(this.value)">
+    <option value="#E4002B" style="color: #E4002B;">🔴 Rheem: #E4002B</option>
+    <option value="#515254" style="color: #515254;">⚫ Rheem: #515254</option>
+    <option value="#3F585A" style="color: #3F585A;">🟢 Ruud: #3F585A</option>
+    <option value="#0081C5" style="color: #0081C5;">🔵 Friedrich: #0081C5</option>
+  </select>
+
+  <label for="csv-upload">📁 Upload CSV</label>
+  <input type="file" id="csv-upload" accept=".csv">
+  
+  <button onclick="addRow()">➕ Add Row</button>
+  <button onclick="exportImage(1200, 600)">📸 Export 1200px</button>
+  <button onclick="exportImage(750, 375)">📸 Export 750px</button>
+</div>
+
+<div id="table-container">
+  <table id="myTable">
+    <thead>
+      <tr>
+        <th contenteditable="true" style="border-top: solid #ffffff 1px; border-bottom: solid #000000 1px; border-left: solid #ffffff 1px; border-right: solid #ffffff 1px; font-weight: bold;">Header 1</th>
+        <th contenteditable="true" style="border-top: solid #ffffff 1px; border-bottom: solid #000000 1px; border-right: solid #ffffff 1px; font-weight: bold;">Header 2</th>
+        <th contenteditable="true" style="border-top: solid #ffffff 1px; border-bottom: solid #000000 1px; border-right: solid #ffffff 1px; font-weight: bold;">Header 3</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td contenteditable="true" style="border-bottom: solid #000000 1px; border-left: solid #000000 1px; border-right: solid #000000 1px;">Data 1</td>
+        <td contenteditable="true" style="border-bottom: solid #000000 1px; border-right: solid #000000 1px;">Data 2 (Bold)</td>
+        <td contenteditable="true" style="border-bottom: solid #000000 1px; border-right: solid #000000 1px;">Data 3 (Bold)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // FUNCTION TO CHANGE COLORS
+  function changeBrandColor(color) {
+    // Change page background
+    document.body.style.backgroundColor = color;
+    
+    // Change all Table Headers (th)
+    const headers = document.querySelectorAll('#myTable th');
+    headers.forEach(th => {
+      th.style.backgroundColor = color;
+    });
+
+    // Update button text color to match the brand for a nice UI touch
+    const buttons = document.querySelectorAll('button, label');
+    buttons.forEach(btn => {
+      btn.style.color = color;
+    });
+  }
+
+  // CSV Upload Handling
+  document.getElementById('csv-upload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const text = event.target.result;
+      const rows = text.split('\n').filter(row => row.trim() !== '');
+      
+      if (rows.length > 0) {
+        const tableBody = document.querySelector("#myTable tbody");
+        const tableHead = document.querySelector("#myTable thead tr");
+        
+        tableBody.innerHTML = "";
+
+        rows.forEach((row, index) => {
+          const columns = row.split(',').map(col => col.trim());
+          
+          if (index === 0) {
+            const headers = tableHead.querySelectorAll('th');
+            for (let i = 0; i < 3; i++) {
+              if (columns[i]) headers[i].textContent = columns[i];
+            }
+          } else {
+            const newRow = tableBody.insertRow(-1);
+            for (let i = 0; i < 3; i++) {
+              const newCell = newRow.insertCell(i);
+              newCell.textContent = columns[i] || "";
+              newCell.contentEditable = "true";
+              applyStyles(newCell, i);
+            }
+          }
+        });
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function applyStyles(cell, index) {
+    cell.style.borderBottom = "solid #000000 1px";
+    if (index === 1 || index === 2) {
+      cell.style.fontWeight = "bold";
+    }
+    if (index === 0) {
+      cell.style.borderLeft = "solid #000000 1px";
+      cell.style.borderRight = "solid #000000 1px";
+    } else {
+      cell.style.borderRight = "solid #000000 1px";
+    }
+  }
+
+  function addRow() {
+    const tableBody = document.querySelector("#myTable tbody");
+    const newRow = tableBody.insertRow(-1); 
+    for (let i = 0; i < 3; i++) {
+      const newCell = newRow.insertCell(i);
+      newCell.textContent = "New Cell";
+      newCell.contentEditable = "true";
+      applyStyles(newCell, i);
+    }
+  }
+
+  function exportImage(targetWidth, logicalWidth) {
+    const container = document.getElementById("table-container");
+    html2canvas(container, {
+      backgroundColor: null, 
+      scale: 2,               
+      logging: false,
+      useCORS: true,
+      width: logicalWidth, 
+      onclone: (clonedDoc) => {
+        const clonedContainer = clonedDoc.getElementById("table-container");
+        const clonedTable = clonedDoc.getElementById("myTable");
+
+        if (targetWidth === 750) {
+           clonedTable.style.width = "330px";
+           clonedTable.querySelectorAll('th').forEach(th => th.style.width = "90px");
+        }
+
+        clonedContainer.style.width = logicalWidth + "px";
+        clonedContainer.style.display = "flex";
+        clonedContainer.style.justifyContent = "center";
+        clonedContainer.style.alignItems = "center";
+      }
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `table-export-${targetWidth}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
+  }
+</script>
+
+</body>
+</html>
