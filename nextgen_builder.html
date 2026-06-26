@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,7 +132,13 @@
     function generate(version) {
         const input = document.getElementById(`input${version}`).value;
         const font = document.getElementById(`font${version}`).value;
-        const items = input.split(/\n/).filter(line => line.trim() !== "");
+        const items = input
+  .split(/\n/)
+  .filter(line => line.trim() !== "")
+  .map(line => {
+    const trimmed = line.replace(/\s+$/, ''); // remove trailing spaces
+    return trimmed.replace(/ (?!.* )/, '&nbsp;'); // replace last remaining space
+  });
         let result = "";
 
         items.forEach(item => {
