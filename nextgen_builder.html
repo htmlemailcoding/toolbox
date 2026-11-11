@@ -137,7 +137,7 @@
   .filter(line => line.trim() !== "")
   .map(line => {
     const trimmed = line.replace(/\s+$/, ''); // remove trailing spaces
-    return trimmed.replace(/ (?!.* )/, '&nbsp;'); // replace last remaining space
+    return trimmed.replace(/ (?!.* )/, '&nbsp;').replace(' -&nbsp;', '&nbsp;&#x2011;&nbsp;').replace(' |&nbsp;', '&nbsp;|&nbsp;'); // replace last remaining space
   });
         let result = "";
 
